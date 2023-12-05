@@ -8,11 +8,13 @@ use App\Models\Lesson;
 use App\Models\LessonSlotBooking;
 use App\Models\LiveLessonSlot;
 use App\Models\Media;
+use App\Models\Order;
 use App\Models\Question;
 use App\Models\QuestionsOption;
 use App\Models\Test;
 use App\Models\TestsResult;
 use App\Models\VideoProgress;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class LessonsController extends Controller
@@ -37,6 +39,50 @@ class LessonsController extends Controller
 
     public function show($course_id, $lesson_slug)
     {
+        $messages = [];
+        $purchased_courses = auth()->user()->purchasedCourses();
+        $purchased_bundles = auth()->user()->purchasedBundles();
+
+        $userOrders = auth()->user()->order;
+
+        foreach ($purchased_courses as $cour) {
+            foreach ($userOrders as $order) {
+                foreach ($order->items->where('item_type', 'App\Models\Course') as $course) {
+                    $date = Carbon::parse($course->created_at);
+                    $isBeforeWeek = Carbon::now()->gte($date->copy()->isFuture());
+                    if ($cour->id < $course_id && !$isBeforeWeek) {
+                        $messages[] = 'You are not allowed to see this course yet.';
+                        break 3;
+                    }
+                    if ($cour->id != $course_id && $cour->progress() < 100 && $cour->progress() > 0) {
+                        $messages[] = 'You are not allowed to see this course yet until you finish the previous.';
+                        break 3;
+                    }
+                }
+            }
+        }
+
+        foreach ($purchased_bundles as $key => $bundle) {
+            foreach ($bundle->courses as $cour) {
+                foreach ($order->items->where('item_type', 'App\Models\Bundle') as $course) {
+                    $date = Carbon::parse($course->created_at);
+                    $isBeforeWeek = Carbon::now()->gte($date->copy()->isFuture());
+                    if ($cour->id < $course_id && !$isBeforeWeek) {
+                        $messages[] = 'You are not allowed to see this course yet.';
+                        break 3;
+                    }
+                    if ($cour->id != $course_id && $cour->progress() < 100 && $cour->progress() > 0) {
+                        $messages[] = 'You are not allowed to see this course yet until you finish the previous.';
+                        break 3;
+                    }
+                }
+            }
+        }
+
+        if (!empty($messages)) {
+            return back()->with('messages', $messages);
+        }
+
         $test_result = "";
         $completed_lessons = "";
 
@@ -63,47 +109,45 @@ class LessonsController extends Controller
             }
         }
 
-        if ((int)config('lesson_timer') == 0) {
-            if(!$lesson->live_lesson){
+        if ((int) config('lesson_timer') == 0) {
+            if (!$lesson->live_lesson) {
                 if ($lesson->chapterStudents()->where('user_id', \Auth::id())->count() == 0) {
                     $lesson->chapterStudents()->create([
                         'model_type' => get_class($lesson),
                         'model_id' => $lesson->id,
                         'user_id' => auth()->user()->id,
-                        'course_id' => $lesson->course->id
+                        'course_id' => $lesson->course->id,
                     ]);
                 }
             }
         }
 
         $course_lessons = $lesson->course->lessons->pluck('id')->toArray();
-        $course_tests = ($lesson->course->tests ) ? $lesson->course->tests->pluck('id')->toArray() : [];
-        $course_lessons = array_merge($course_lessons,$course_tests);
+        $course_tests = ($lesson->course->tests) ? $lesson->course->tests->pluck('id')->toArray() : [];
+        $course_lessons = array_merge($course_lessons, $course_tests);
 
         $previous_lesson = $lesson->course->courseTimeline()
             ->where('sequence', '<', $lesson->courseTimeline->sequence)
-            ->whereIn('model_id',$course_lessons)
+            ->whereIn('model_id', $course_lessons)
             ->orderBy('sequence', 'desc')
             ->first();
 
         $next_lesson = $lesson->course->courseTimeline()
-            ->whereIn('model_id',$course_lessons)
+            ->whereIn('model_id', $course_lessons)
             ->where('sequence', '>', $lesson->courseTimeline->sequence)
             ->orderBy('sequence', 'asc')
             ->first();
 
         $lessons = $lesson->course->courseTimeline()
-            ->whereIn('model_id',$course_lessons)
+            ->whereIn('model_id', $course_lessons)
             ->orderby('sequence', 'asc')
             ->get();
 
-
-
         $purchased_course = $lesson->course->students()->where('user_id', \Auth::id())->count() > 0;
-        $test_exists = FALSE;
+        $test_exists = false;
 
         if (get_class($lesson) == 'App\Models\Test') {
-            $test_exists = TRUE;
+            $test_exists = true;
         }
 
         $completed_lessons = \Auth::user()->chapters()
@@ -113,7 +157,7 @@ class LessonsController extends Controller
             ->toArray();
 
         return view($this->path . '.courses.lesson', compact('lesson', 'previous_lesson', 'next_lesson', 'test_result',
-            'purchased_course', 'test_exists', 'lessons', 'completed_lessons','test_pass','percentage','total_questions'));
+            'purchased_course', 'test_exists', 'lessons', 'completed_lessons', 'test_pass', 'percentage', 'total_questions'));
     }
 
     public function test($lesson_slug, Request $request)
@@ -122,36 +166,36 @@ class LessonsController extends Controller
         $answers = [];
         $test_score = 0;
         $total_score = 0;
-        if(!$request->get('questions')){
+        if (!$request->get('questions')) {
 
-            return back()->with(['flash_warning'=>'No options selected']);
+            return back()->with(['flash_warning' => 'No options selected']);
         }
         foreach ($request->get('questions') as $question_id => $answer_id) {
             $question = Question::find($question_id);
             $correct = QuestionsOption::where('question_id', $question_id)
-                    ->where('id', $answer_id)
-                    ->where('correct', 1)->count() > 0;
+                ->where('id', $answer_id)
+                ->where('correct', 1)->count() > 0;
             $answers[] = [
                 'question_id' => $question_id,
                 'option_id' => $answer_id,
-                'correct' => $correct
+                'correct' => $correct,
             ];
             if ($correct) {
-                if($question->score) {
+                if ($question->score) {
                     $test_score += $question->score;
                 }
             }
             /*
-             * Save the answer
-             * Check if it is correct and then add points
-             * Save all test result and show the points
-             */
+         * Save the answer
+         * Check if it is correct and then add points
+         * Save all test result and show the points
+         */
         }
         $test_result = TestsResult::create([
             'test_id' => $test->id,
             'user_id' => \Auth::id(),
             'test_result' => $test_score,
-            'test_score' =>$total_score,
+            'test_score' => $total_score,
             'course_id' => $test->course_id,
         ]);
         $test_result->answers()->createMany($answers);
@@ -167,12 +211,12 @@ class LessonsController extends Controller
                 'model_type' => $test->model_type,
                 'model_id' => $test->id,
                 'user_id' => auth()->user()->id,
-                'course_id' => $test->course->id
+                'course_id' => $test->course->id,
             ]);
         }
 
-        return back()->with(['message'=>'Test score: ' . $test_score,'result'=>$test_result,'test_percentage' => $percentage,
-            'test_pass' => $test_pass , 'total_score' => $total_score]);
+        return back()->with(['message' => 'Test score: ' . $test_score, 'result' => $test_result, 'test_percentage' => $percentage,
+            'test_pass' => $test_pass, 'total_score' => $total_score]);
     }
 
     public function retest(Request $request)
@@ -202,7 +246,6 @@ class LessonsController extends Controller
         return $video_progress->progress;
     }
 
-
     public function courseProgress(Request $request)
     {
         if (\Auth::check()) {
@@ -213,7 +256,7 @@ class LessonsController extends Controller
                         'model_type' => $request->model_type,
                         'model_id' => $request->model_id,
                         'user_id' => auth()->user()->id,
-                        'course_id' => $lesson->course->id
+                        'course_id' => $lesson->course->id,
                     ]);
                     return true;
                 }
@@ -227,24 +270,24 @@ class LessonsController extends Controller
         $lesson_slot = LiveLessonSlot::find($request->live_lesson_slot_id);
         $lesson = $lesson_slot->lesson;
 
-        if ((int)config('lesson_timer') == 0) {
+        if ((int) config('lesson_timer') == 0) {
             if ($lesson->chapterStudents()->where('user_id', \Auth::id())->count() == 0) {
                 $lesson->chapterStudents()->create([
                     'model_type' => get_class($lesson),
                     'model_id' => $lesson->id,
                     'user_id' => auth()->user()->id,
-                    'course_id' => $lesson->course->id
+                    'course_id' => $lesson->course->id,
                 ]);
             }
         }
 
-        if(LessonSlotBooking::where('lesson_id', $request->lesson_id)->where('user_id', auth()->user()->id)->count() == 0){
+        if (LessonSlotBooking::where('lesson_id', $request->lesson_id)->where('user_id', auth()->user()->id)->count() == 0) {
             LessonSlotBooking::create(
                 ['lesson_id' => $request->lesson_id, 'live_lesson_slot_id' => $request->live_lesson_slot_id, 'user_id' => auth()->user()->id]
             );
             \Mail::to(auth()->user()->email)->send(new StudentMeetingSlotMail($lesson_slot));
         }
-        return back()->with(['success'=> __('alerts.frontend.course.slot_booking')]);
+        return back()->with(['success' => __('alerts.frontend.course.slot_booking')]);
     }
 
 }

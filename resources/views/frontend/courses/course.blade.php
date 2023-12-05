@@ -39,6 +39,14 @@
         ============================================= -->
     <section id="course-details" class="course-details-section">
         <div class="container">
+            @foreach (session('messages', []) as $message)
+            <div class="alert alert-danger" role="alert">
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                </button>{{ $message }}<br>
+            </div>
+            @break
+        @endforeach
             <div class="row">
                 <div class="col-md-9">
                     @if(session()->has('danger'))
