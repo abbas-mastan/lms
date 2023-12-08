@@ -22,7 +22,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Session;
-use KingFlamez\Rave\Facades\Rave;
+use KingFlamez\Rave\Facades\Rave as Flutterwave;
 use Omnipay\Omnipay;
 
 class CartController extends Controller
@@ -45,8 +45,6 @@ class CartController extends Controller
         }
         $this->path = $path;
         $this->currency = getCurrency(config('app.currency'));
-
-
     }
 
     public function index(Request $request)
@@ -61,6 +59,7 @@ class CartController extends Controller
                 $course_ids[] = $item->id;
             }
         }
+        $course_ids = [1, 2, 3];
         $courses = new Collection(Course::find($course_ids));
         $bundles = Bundle::find($bundle_ids);
         $courses = $bundles->merge($courses);
@@ -68,7 +67,6 @@ class CartController extends Controller
         $total = $courses->sum('price');
         //Apply Tax
         $taxData = $this->applyTax('total');
-
 
         return view($this->path . '.cart.checkout', compact('courses', 'bundles', 'total', 'taxData'));
     }
@@ -98,10 +96,9 @@ class CartController extends Controller
                         'description' => $product->description,
                         'image' => $product->course_image,
                         'type' => $type,
-                        'teachers' => $teachers
+                        'teachers' => $teachers,
                     ]);
         }
-
 
         Session::flash('success', trans('labels.frontend.cart.product_added'));
         return back();
@@ -135,7 +132,7 @@ class CartController extends Controller
                         'description' => $product->description,
                         'image' => $product->course_image,
                         'type' => $type,
-                        'teachers' => $teachers
+                        'teachers' => $teachers,
                     ]);
         }
         foreach (Cart::session(auth()->user()->id)->getContent() as $item) {
@@ -195,7 +192,7 @@ class CartController extends Controller
             'currency' => $currency,
             'token' => $token,
             'confirm' => true,
-            'description' => auth()->user()->name
+            'description' => auth()->user()->name,
         ])->send();
 
         if ($response->isSuccessful()) {
@@ -284,7 +281,7 @@ class CartController extends Controller
         }
 
         $content['items'] = $items;
-        $content['total'] =  number_format(Cart::session(auth()->user()->id)->getTotal(),2);
+        $content['total'] = number_format(Cart::session(auth()->user()->id)->getTotal(), 2);
         $content['reference_no'] = $order->reference_no;
 
         try {
@@ -330,8 +327,7 @@ class CartController extends Controller
             $this->adminOrderMail($order);
             Cart::session(auth()->user()->id)->clear();
             return Redirect::route('status');
-        }
-        else {
+        } else {
             \Session::flash('failure', trans('labels.frontend.cart.payment_failed'));
             return Redirect::route('status');
         }
@@ -359,7 +355,7 @@ class CartController extends Controller
         $order->items()->create([
             'item_id' => $id,
             'item_type' => $type,
-            'price' => 0
+            'price' => 0,
         ]);
 
         foreach ($order->items as $orderItem) {
@@ -444,7 +440,7 @@ class CartController extends Controller
                     'type' => 'coupon',
                     'target' => 'total', // this condition will be applied to cart's subtotal when getSubTotal() is called.
                     'value' => $type,
-                    'order' => 1
+                    'order' => 1,
                 ));
 
                 Cart::session(auth()->user()->id)->condition($condition);
@@ -454,7 +450,6 @@ class CartController extends Controller
                 $html = view('frontend.cart.partials.order-stats', compact('total', 'taxData'))->render();
                 return ['status' => 'success', 'html' => $html];
             }
-
 
         }
         return ['status' => 'fail', 'message' => trans('labels.frontend.cart.invalid_coupon')];
@@ -515,7 +510,7 @@ class CartController extends Controller
             $order->items()->create([
                 'item_id' => $cartItem->id,
                 'item_type' => $type,
-                'price' => $cartItem->price
+                'price' => $cartItem->price,
             ]);
         }
 //        Cart::session(auth()->user()->id)->removeConditionsByType('coupon');
@@ -563,7 +558,7 @@ class CartController extends Controller
             $taxData = [];
             foreach ($taxes as $tax) {
                 $total = Cart::session(auth()->user()->id)->getTotal();
-                $taxData[] = ['name' => '+' . $tax->rate . '% ' . $tax->name, 'amount' =>  number_format(($total * $tax->rate / 100),2)];
+                $taxData[] = ['name' => '+' . $tax->rate . '% ' . $tax->name, 'amount' => number_format(($total * $tax->rate / 100), 2)];
             }
 
             $condition = new \Darryldecode\Cart\CartCondition(array(
@@ -571,7 +566,7 @@ class CartController extends Controller
                 'type' => 'tax',
                 'target' => 'total', // this condition will be applied to cart's subtotal when getSubTotal() is called.
                 'value' => $taxes->sum('rate') . '%',
-                'order' => 2
+                'order' => 2,
             ));
             Cart::session(auth()->user()->id)->condition($condition);
             return $taxData;
@@ -580,7 +575,7 @@ class CartController extends Controller
 
     private function adminOrderMail($order)
     {
-        if(config('access.users.order_mail')) {
+        if (config('access.users.order_mail')) {
             $content = [];
             $items = [];
             $counter = 0;
@@ -590,7 +585,7 @@ class CartController extends Controller
             }
 
             $content['items'] = $items;
-            $content['total'] =  number_format(Cart::session(auth()->user()->id)->getTotal(),2);
+            $content['total'] = number_format(Cart::session(auth()->user()->id)->getTotal(), 2);
             $content['reference_no'] = $order->reference_no;
 
             $admins = User::role('administrator')->get();
@@ -617,7 +612,7 @@ class CartController extends Controller
             "email" => auth()->user()->email,
             "redirect_url" => route('cart.instamojo.status'),
         ];
-        $instamojoWrapper =  new InstamojoWrapper();
+        $instamojoWrapper = new InstamojoWrapper();
         return $instamojoWrapper->pay($cartdata);
     }
 
@@ -648,11 +643,10 @@ class CartController extends Controller
             $this->adminOrderMail($order);
             Cart::session(auth()->user()->id)->clear();
             return Redirect::route('status');
-        }else if (request()->get('payment_status') == 'Failed') {
+        } else if (request()->get('payment_status') == 'Failed') {
             \Session::flash('failure', trans('labels.frontend.cart.payment_failed'));
             return Redirect::route('status');
-        }
-        else {
+        } else {
             \Session::flash('failure', trans('labels.frontend.cart.payment_failed'));
             return Redirect::route('status');
         }
@@ -666,7 +660,7 @@ class CartController extends Controller
         $orderId = $razorWrapper->order($currency, $amount);
         $cart = [
             'order_id' => $orderId,
-            'amount' =>  $amount,
+            'amount' => $amount,
             'currency' => $currency,
             'description' => auth()->user()->name,
             'name' => auth()->user()->name,
@@ -730,7 +724,7 @@ class CartController extends Controller
     {
         $cashFreeWrapper = new CashFreeWrapper();
         $response = $cashFreeWrapper->signatureVerification($request->except('signature'), $request->signature);
-        if($response && $request->txStatus == "SUCCESS"){
+        if ($response && $request->txStatus == "SUCCESS") {
             $order = $this->makeOrder();
             $order->payment_type = 6;
             $order->transaction_id = request()->get('payment_id');
@@ -753,11 +747,11 @@ class CartController extends Controller
             generateInvoice($order);
             $this->adminOrderMail($order);
             Cart::session(auth()->user()->id)->clear();
-            \Log::info('Gateway:CaseFree,Message:'.$request->txMsg.'txStatus:'.$request->txStatus. ' for id = ' . auth()->user()->id);
+            \Log::info('Gateway:CaseFree,Message:' . $request->txMsg . 'txStatus:' . $request->txStatus . ' for id = ' . auth()->user()->id);
             return Redirect::route('status');
 
         }
-        \Log::info('Gateway:CaseFree,Message:'.$request->txMsg.'txStatus:'.$request->txStatus. ' for id = ' . auth()->user()->id);
+        \Log::info('Gateway:CaseFree,Message:' . $request->txMsg . 'txStatus:' . $request->txStatus . ' for id = ' . auth()->user()->id);
         \Session::flash('failure', trans('labels.frontend.cart.payment_failed'));
         return Redirect::route('status');
     }
@@ -782,7 +776,7 @@ class CartController extends Controller
         \Session::forget('failure');
         $payumoneyWrapper = new PayuMoneyWrapper();
         $response = $payumoneyWrapper->response($request);
-        if(is_array($response) && $response['status'] == 'success'){
+        if (is_array($response) && $response['status'] == 'success') {
             $order = $this->makeOrder();
             $order->payment_type = 7;
             $order->transaction_id = $response['payuMoneyId'];
@@ -805,47 +799,109 @@ class CartController extends Controller
             generateInvoice($order);
             $this->adminOrderMail($order);
             Cart::session(auth()->user()->id)->clear();
-            \Log::info('Gateway:PayUMoney,Message:'.$response['error_Message'].',txStatus:'.$response['status']. ' for id = ' . auth()->user()->id);
+            \Log::info('Gateway:PayUMoney,Message:' . $response['error_Message'] . ',txStatus:' . $response['status'] . ' for id = ' . auth()->user()->id);
             return Redirect::route('status');
         }
-        \Log::info('Gateway:PayUMoney,Message:'.$response['error_Message'].',txStatus:'.$response['status']. ' for id = ' . auth()->user()->id);
+        \Log::info('Gateway:PayUMoney,Message:' . $response['error_Message'] . ',txStatus:' . $response['status'] . ' for id = ' . auth()->user()->id);
         \Session::flash('failure', trans('labels.frontend.cart.payment_failed'));
         return Redirect::route('status');
     }
 
     public function flatterPayment(Request $request)
     {
-        $request->request->add([
-            'amount' => Cart::session(auth()->user()->id)->getTotal(),
-            'payment_method' => 'both',
-            'description' => auth()->user()->name,
-            'country' => '',
-            'currency' => $this->currency['short_code'],
-            'email' => auth()->user()->email,
-            'firstname' => auth()->user()->first_name,
-            'lastname' => auth()->user()->last_name,
-            'metadata' => '',
-            'phonenumber' => $request->user_phone,
-//            'logo' => 'https://demo.neonlms.com/storage/logos/popup-logo.png',
-            'logo' => asset('storage/logos/'.config('logo_popup')),
-            'title' =>  config('app.name'),
-        ]);
-        if($request->method() == "POST") {
-            Rave::initialize(route('cart.flutter.status'));
-        }else{
-            \Session::flash('failure', trans('labels.frontend.cart.payment_failed'));
-            return Redirect::route('status');
+//         $request->request->add([
+//             'amount' => Cart::session(auth()->user()->id)->getTotal(),
+//             'payment_method' => 'both',
+//             'description' => auth()->user()->name,
+//             'country' => '',
+//             'currency' => $this->currency['short_code'],
+//             'email' => auth()->user()->email,
+//             'firstname' => auth()->user()->first_name,
+//             'lastname' => auth()->user()->last_name,
+//             'metadata' => '',
+//             'phonenumber' => $request->user_phone,
+// //            'logo' => 'https://demo.neonlms.com/storage/logos/popup-logo.png',
+//             'logo' => asset('storage/logos/'.config('logo_popup')),
+//             'title' =>  config('app.name'),
+//         ]);
+//         if($request->method() == "POST") {
+//             Rave::initialize(route('cart.flutter.status'));
+//         }else{
+//             \Session::flash('failure', trans('labels.frontend.cart.payment_failed'));
+//             return Redirect::route('status');
+//         }
+
+        $reference = Flutterwave::generateReference();
+    $amount = Cart::session(auth()->user()->id)->getTotal();
+    dd($amount);
+        $data = [
+            'payment_options' => 'card,banktransfer',
+            'amount' => $amount,
+            'email' => request()->email,
+            'tx_ref' => $reference,
+            'currency' => "NGN",
+            'redirect_url' => route('cart.flutter.status'),
+            'customer' => [
+                'email' => request()->email,
+                "phone_number" => request()->phone,
+                "name" => request()->name,
+            ],
+
+        ];
+
+        $payment = Flutterwave::initializePayment($data);
+
+        if ($payment['status'] !== 'success') {
+            // notify something went wrong
+            return;
         }
+
+        return redirect($payment['data']['link']);
+
     }
 
     public function getFlatterStatus(Request $request)
     {
-        $response = json_decode($request->resp,true);
-        if($response['respcode'] == '00' || $response['respcode'] == "0") {
-            $data = Rave::verifyTransaction($response['data']['transactionobject']['txRef']);
+        // $response = json_decode($request->resp, true);
+        // if ($response['respcode'] == '00' || $response['respcode'] == "0") {
+        //     $data = Rave::verifyTransaction($response['data']['transactionobject']['txRef']);
+        //     $order = $this->makeOrder();
+        //     $order->payment_type = 7;
+        //     $order->transaction_id = $response['data']['transactionobject']['txRef'];
+        //     $order->status = 1;
+        //     $order->save();
+        //     (new EarningHelper)->insert($order);
+        //     foreach ($order->items as $orderItem) {
+        //         //Bundle Entries
+        //         if ($orderItem->item_type == Bundle::class) {
+        //             foreach ($orderItem->item->courses as $course) {
+        //                 $course->students()->attach($order->user_id);
+        //             }
+        //         }
+        //         $orderItem->item->students()->attach($order->user_id);
+        //     }
+        //     //Generating Invoice
+        //     generateInvoice($order);
+        //     $this->adminOrderMail($order);
+        //     Cart::session(auth()->user()->id)->clear();
+        //     \Log::info('Gateway:Flutter,Message:' . $response['respmsg'] . ',txStatus:' . $response['data']['data']['status'] . ' for id = ' . auth()->user()->id);
+        //     \Session::flash('success', trans('labels.frontend.cart.payment_done'));
+        // } else {
+        //     \Log::info('Gateway:Flutter,Message:' . json_encode($response) . ' for id = ' . auth()->user()->id);
+        //     \Session::flash('failure', trans('labels.frontend.cart.payment_failed'));
+        // }
+        
+
+
+        $status = request()->status;
+        
+        //if payment is successful
+        if ($status ==  'successful') {
+            $transactionID = Flutterwave::getTransactionIDFromCallback();
+            $data = Flutterwave::verifyTransaction($transactionID);
             $order = $this->makeOrder();
             $order->payment_type = 7;
-            $order->transaction_id = $response['data']['transactionobject']['txRef'];
+            $order->transaction_id = $data['data']['tx_ref'];
             $order->status = 1;
             $order->save();
             (new EarningHelper)->insert($order);
@@ -862,12 +918,19 @@ class CartController extends Controller
             generateInvoice($order);
             $this->adminOrderMail($order);
             Cart::session(auth()->user()->id)->clear();
-            \Log::info('Gateway:Flutter,Message:'.$response['respmsg'].',txStatus:'.$response['data']['data']['status']. ' for id = ' . auth()->user()->id);
+            
             \Session::flash('success', trans('labels.frontend.cart.payment_done'));
-        }else{
-            \Log::info('Gateway:Flutter,Message:'.json_encode($response). ' for id = ' . auth()->user()->id);
-            \Session::flash('failure', trans('labels.frontend.cart.payment_failed'));
+            
+        // dd($data);
         }
+        elseif ($status ==  'cancelled'){
+            //Put desired action/code after transaction has been cancelled here
+        }
+        else{
+            //Put desired action/code after transaction has failed here
+        }
+
+
         return Redirect::route('status');
     }
 }

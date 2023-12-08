@@ -60,6 +60,7 @@ class LoginController extends Controller
 
     public function login(Request $request)
     {
+        $agent = new \Jenssegers\Agent\Agent;
         $validator = Validator::make($request->all(), [
             'email' => 'required|email|max:255',
             'password' => 'required|min:6',
@@ -83,6 +84,20 @@ class LoginController extends Controller
                         'last_login_at' => Carbon::now()->toDateTimeString(),
                         'last_login_ip' => $request->getClientIp()
                     ]);
+
+                   
+                    if(auth()->user()->hasRole('student') && $agent->isDesktop() && auth()->user()->desktop_ip !== request()->ip()){
+                    auth()->user()->update([
+                        'desktop_ip' => request()->ip()
+                    ]);
+                    }
+                    if(auth()->user()->hasRole('student') && $agent->isMobile() && auth()->user()->mobile_ip !== request()->ip()){
+                    auth()->user()->update([
+                        'mobile_ip' => request()->ip()
+                    ]);
+                    }
+
+
                     if($request->ajax()){
                         return response(['success' => true,'redirect' => $redirect], Response::HTTP_OK);
                     }else{
@@ -128,6 +143,7 @@ class LoginController extends Controller
      */
     protected function authenticated(Request $request, $user)
     {
+        
         /*
          * Check to see if the users account is confirmed and active
          */

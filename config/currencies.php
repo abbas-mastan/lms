@@ -131,7 +131,11 @@ return [
         'symbol' => '฿',
         'name' => 'Thai baht',
         'country' => 'Thailand'
+    ],
+    [
+        'short_code' => 'PKR',
+        'symbol' => 'PKR',
+        'name' => 'Pakistanee Rupee',
+        'country' => 'Pakistan'
     ]
-
-
 ];

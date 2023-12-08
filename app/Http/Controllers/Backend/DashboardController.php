@@ -17,12 +17,8 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class DashboardController extends Controller
 {
-    /**
-     * @return \Illuminate\View\View
-     */
     public function index()
     {
-
         $purchased_courses = NULL;
         $students_count = NULL;
         $recent_reviews = NULL;

@@ -18,7 +18,7 @@ class PasswordExpires
      */
     public function handle($request, Closure $next)
     {
-        $user = $request->user();
+       $user = $request->user();
 
         if (is_numeric(config('access.users.password_expires_days')) && $user->canChangePassword()) {
             $password_changed_at = new Carbon($user->password_changed_at ?: $user->created_at);

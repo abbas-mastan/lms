@@ -1,10 +1,16 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LanguageController;
-use App\Http\Controllers\Frontend\HomeController;
 use App\Http\Controllers\v2\InstamojoController;
-use App\Http\Controllers\v2\PaypalPaymentController;
 use App\Http\Controllers\v2\PayUMoneyController;
+use App\Http\Controllers\Frontend\HomeController;
+use App\Http\Controllers\v2\PaypalPaymentController;
+use PragmaRX\Countries\Package\Countries;
+use PragmaRX\Countries\Package\Services\Config;
+use Stevebauman\Location\Facades\Location;
+
+
 
 /*
  * Global Routes
@@ -34,6 +40,25 @@ Route::get('reset-demo', function () {
     }
 });
 //===================================================================//
+
+Route::get('migrate-table',function(){
+    \Illuminate\Support\Facades\Artisan::call('migrate', [
+        '--path' => 'database/migrations/2023_12_07_075549_add_mobile_ip_to_users_table.php'
+    ]);
+        return 'migration successful!';
+});
+
+Route::get('get-country',function(){
+    $ip = '	1.255.255'; /* Static IP address */
+    $currentUserInfo = Location::get($ip);
+    $countries = new Countries(new Config());
+    print_r(
+
+        $countries->all()
+    ) ;
+
+});
+
 
 
 /*
@@ -84,10 +109,10 @@ Route::post('newsletter/subscribe', 'Frontend\HomeController@subscribe')->name('
 
 //============Course Routes=================//
 Route::get('courses', ['uses' => 'CoursesController@all', 'as' => 'courses.all']);
-Route::get('course/{slug}', ['uses' => 'CoursesController@show', 'as' => 'courses.show'])->middleware('subscribed');
+Route::get('course/{slug}', ['uses' => 'CoursesController@show', 'as' => 'courses.show'])->middleware(['subscribed','check_devices']);
+Route::get('category/{category}/courses', ['uses' => 'CoursesController@getByCategory', 'as' => 'courses.category'])->middleware('check_devices');
 //Route::post('course/payment', ['uses' => 'CoursesController@payment', 'as' => 'courses.payment']);
 Route::post('course/{course_id}/rating', ['uses' => 'CoursesController@rating', 'as' => 'courses.rating']);
-Route::get('category/{category}/courses', ['uses' => 'CoursesController@getByCategory', 'as' => 'courses.category']);
 Route::post('courses/{id}/review', ['uses' => 'CoursesController@addReview', 'as' => 'courses.review']);
 Route::get('courses/review/{id}/edit', ['uses' => 'CoursesController@editReview', 'as' => 'courses.review.edit']);
 Route::post('courses/review/{id}/edit', ['uses' => 'CoursesController@updateReview', 'as' => 'courses.review.update']);
@@ -134,9 +159,9 @@ Route::post('contact/send', 'Frontend\ContactController@send')->name('contact.se
 Route::get('download', ['uses' => 'Frontend\HomeController@getDownload', 'as' => 'download']);
 
 Route::group(['middleware' => 'auth'], function () {
+    Route::get('cart', ['uses' => 'CartController@index', 'as' => 'cart.index']);
     Route::post('cart/checkout', ['uses' => 'CartController@checkout', 'as' => 'cart.checkout']);
     Route::post('cart/add', ['uses' => 'CartController@addToCart', 'as' => 'cart.addToCart']);
-    Route::get('cart', ['uses' => 'CartController@index', 'as' => 'cart.index']);
     Route::get('cart/clear', ['uses' => 'CartController@clear', 'as' => 'cart.clear']);
     Route::get('cart/remove', ['uses' => 'CartController@remove', 'as' => 'cart.remove']);
     Route::post('cart/apply-coupon', ['uses' => 'CartController@applyCoupon', 'as' => 'cart.applyCoupon']);

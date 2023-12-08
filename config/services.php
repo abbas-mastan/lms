@@ -61,6 +61,11 @@ return [
         'key' => env('RAZORPAY_KEY'),
         'secret' => env('RAZORPAY_SECRET'),
     ],
+    'flutter' => [
+        'active' => true,
+        'key' => env('RAZORPAY_KEY'),
+        'secret' => env('RAZORPAY_SECRET'),
+    ],
 
     'cashfree' => [
         'active' => false,
